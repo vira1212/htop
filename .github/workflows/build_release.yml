@@ -1,51 +1,70 @@
 name: Build Source Release
-
-# Trigger whenever a release is created
+ 
 on:
   release:
     types:
       - created
-
+ 
 jobs:
   build:
-    name: build
+    name: Build
     runs-on: ubuntu-latest
+ 
+    strategy:
+      matrix:
+        arch: [x86, s390x]
+ 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: true
-
-    - name: archive
-      id: archive
-      run: |
-        VERSION=${{ github.event.release.tag_name }}
-        PKGNAME="htop-$VERSION"
-        SHASUM=$PKGNAME.tar.xz.sha256
-        autoreconf -i
-        mkdir -p /tmp/$PKGNAME
-        mv * /tmp/$PKGNAME
-        mv /tmp/$PKGNAME .
-        TARBALL=$PKGNAME.tar.xz
-        tar cJf $TARBALL $PKGNAME
-        sha256sum $TARBALL > $SHASUM
-        echo "::set-output name=tarball::$TARBALL"
-        echo "::set-output name=shasum::$SHASUM"
-    - name: upload tarball
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./${{ steps.archive.outputs.tarball }}
-        asset_name: ${{ steps.archive.outputs.tarball }}
-        asset_content_type: application/gzip
-
-    - name: upload shasum
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./${{ steps.archive.outputs.shasum }}
-        asset_name: ${{ steps.archive.outputs.shasum }}
-        asset_content_type: text/plain
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+ 
+      - name: Set up QEMU
+        uses: actions/setup-qemu@v2
+        with:
+          arch: ${{ matrix.arch }}
+      
+      - name: Setup environment
+        run: |
+          if [ "${{ matrix.arch }}" == "s390x" ]; then
+            # Add s390x-specific setup here, if necessary
+            uname -a
+          fi
+ 
+      - name: archive
+        id: archive
+        run: |
+          VERSION=${{ github.event.release.tag_name }}
+          PKGNAME="htop-$VERSION"
+          SHASUM=$PKGNAME.tar.xz.sha256
+          
+          autoreconf -i
+          mkdir -p /tmp/$PKGNAME
+          mv * /tmp/$PKGNAME
+          mv /tmp/$PKGNAME .
+          TARBALL=$PKGNAME.tar.xz
+          tar cJf $TARBALL $PKGNAME
+          sha256sum $TARBALL > $SHASUM
+          echo "::set-output name=tarball::$TARBALL"
+          echo "::set-output name=shasum::$SHASUM"
+ 
+      - name: Upload tarball
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ steps.archive.outputs.tarball }}
+          asset_name: ${{ steps.archive.outputs.tarball }}
+          asset_content_type: application/gzip
+ 
+      - name: Upload shasum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ steps.archive.outputs.shasum }}
+          asset_name: ${{ steps.archive.outputs.shasum }}
+          asset_content_type: text/plain
